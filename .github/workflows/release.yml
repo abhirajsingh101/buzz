@@ -840,7 +840,15 @@ jobs:
           set -euo pipefail
           NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
           awk "/^## v${VERSION}\$/{found=1; next} found && /^## v/{exit} found" CHANGELOG.md > "$NOTES_FILE"
-          [[ -s "$NOTES_FILE" ]] || { echo "::error::missing non-empty changelog block for v${VERSION}"; exit 1; }
+          # Fork: CHANGELOG.md tracks upstream releases, so this fork's suffixed
+          # versions never have a matching block. Upstream treats that as fatal;
+          # fall back to a generated note rather than adding our own entries to
+          # CHANGELOG.md on `personal` -- that file is rewritten on nearly every
+          # upstream release and would conflict on nearly every sync.
+          if [[ ! -s "$NOTES_FILE" ]]; then
+            printf 'Fork build of Buzz Desktop v%s.\n\nBuilt from %s.\n' \
+              "$VERSION" "$GITHUB_SHA" > "$NOTES_FILE"
+          fi
           PRERELEASE_FLAGS=()
           if [[ "$VERSION" == *-* ]]; then
             PRERELEASE_FLAGS=(--prerelease --latest=false)
@@ -875,5 +883,18 @@ jobs:
         run: gh release edit "desktop-v${VERSION}" --draft=false
 
       - name: Upload latest.json to rolling release last
-        if: ${{ !contains(needs.setup.outputs.version, '-') }}
-        run: gh release upload buzz-desktop-latest latest.json --clobber
+        run: |
+          set -euo pipefail
+          # Fork: releases are not git data and are not inherited by a fork, so
+          # the rolling release that hosts latest.json does not exist here until
+          # we make it. The updater endpoint points at this exact asset URL.
+          gh release view buzz-desktop-latest >/dev/null 2>&1 || \
+            gh release create buzz-desktop-latest \
+              --title "Buzz Desktop (rolling updater manifest)" \
+              --notes "Hosts latest.json for the in-app updater. Do not delete." \
+              --latest=false
+          # Upstream skips this upload for prerelease versions. Every release on
+          # this fork carries a version suffix (to avoid colliding with upstream
+          # tags) yet is still the newest build on its own train, so keeping that
+          # guard would skip the upload every time and the popup would never fire.
+          gh release upload buzz-desktop-latest latest.json --clobber
