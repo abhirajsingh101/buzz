@@ -815,7 +815,11 @@ jobs:
           ARCHIVE_WIN: ${{ needs.release-windows.outputs.archive_name }}
         run: |
           set -euo pipefail
-          BASE="https://github.com/block/buzz/releases/download/desktop-v${VERSION}"
+          # Repo-relative, like BUZZ_UPDATER_ENDPOINT: these are the download URLs
+          # written *inside* latest.json. Hardcoding block/buzz here makes a fork's
+          # manifest advertise upstream URLs, so the update popup appears and then
+          # fails with a 404 -- with every job still green.
+          BASE="${{ github.server_url }}/${{ github.repository }}/releases/download/desktop-v${VERSION}"
           TRIPLES=()
 
           add_triple() {
