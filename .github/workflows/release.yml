@@ -14,7 +14,7 @@ jobs:
   # create the release objects all four platform jobs upload into.
   setup:
     name: Setup
-    if: github.repository == 'block/buzz'
+    if: github.repository == 'abhirajsingh101/buzz'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -51,7 +51,7 @@ jobs:
 
   release:
     name: Release
-    if: github.repository == 'block/buzz'
+    if: github.repository == 'abhirajsingh101/buzz'
     runs-on: macos-latest
     needs: setup
     timeout-minutes: 60
@@ -87,7 +87,7 @@ jobs:
         run: cd desktop && node scripts/build-release-config.mjs
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
 
       - name: Build sidecars
         run: |
@@ -135,10 +135,10 @@ jobs:
           key: mesh-llama-${{ runner.os }}-metal-${{ steps.mesh_rev.outputs.rev }}
 
       - name: Build unsigned Tauri app
-        run: cd desktop && pnpm tauri build --verbose --no-sign --features mesh-llm --config src-tauri/tauri.release.conf.json
+        run: cd desktop && pnpm tauri build --verbose --features mesh-llm --config src-tauri/tauri.release.conf.json
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
@@ -165,55 +165,17 @@ jobs:
           DMG_PATH: ${{ steps.unsigned.outputs.dmg }}
         run: desktop/scripts/set-dmg-finder-text-size.sh "$DMG_PATH" 14
 
-      # mdx-ios-codesign-helper discovers this file by its exact lowercase basename.
-      - name: Stage signing entitlements
-        run: cp desktop/src-tauri/Entitlements.plist "${RUNNER_TEMP}/entitlements.plist"
-
-      - name: Codesign and Notarize
-        id: codesign
-        uses: block/apple-codesign-action@679535d1ab7c5a7c18e6f9afcba3464512cc3dde # v1.1.0
-        with:
-          osx-codesign-role: ${{ secrets.OSX_CODESIGN_ROLE }}
-          codesign-s3-bucket: ${{ secrets.CODESIGN_S3_BUCKET }}
-          unsigned-artifact-path: ${{ steps.unsigned.outputs.dmg }}
-          entitlements-plist-path: ${{ runner.temp }}/entitlements.plist
-          artifact-name: buzz-${{ github.sha }}-${{ github.run_id }}-arm64
-
-      - name: Replace DMG and rebuild updater archive
-        env:
-          SIGNED_DMG: ${{ steps.codesign.outputs.signed-dmg-path }}
-          SIGNED_APP_ZIP: ${{ steps.codesign.outputs.signed-artifact-path }}
-          UNSIGNED_DMG: ${{ steps.unsigned.outputs.dmg }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          BUNDLE_DIR="desktop/src-tauri/target/release/bundle"
-          APP_DIR="${BUNDLE_DIR}/macos"
-
-          # Replace unsigned DMG with the signed/notarized one.
-          cp "$SIGNED_DMG" "$UNSIGNED_DMG"
-
-          # Swap the unsigned .app for the signed .app extracted from the action's zip.
-          EXTRACT_DIR="${RUNNER_TEMP}/signed-app-extract"
-          rm -rf "$EXTRACT_DIR" && mkdir -p "$EXTRACT_DIR"
-          ditto -x -k "$SIGNED_APP_ZIP" "$EXTRACT_DIR"
-          rm -rf "${APP_DIR}/Buzz.app"
-          cp -R "${EXTRACT_DIR}/Buzz.app" "${APP_DIR}/Buzz.app"
-
-          # Rebuild the updater archive from the signed .app and re-sign it with the Tauri updater key.
-          rm -f "${APP_DIR}/Buzz.app.tar.gz" "${APP_DIR}/Buzz.app.tar.gz.sig"
-          (cd "$APP_DIR" && tar -czf Buzz.app.tar.gz Buzz.app)
-          TARBALL_ABS="$(pwd)/${APP_DIR}/Buzz.app.tar.gz"
-          (cd desktop && pnpm tauri signer sign "$TARBALL_ABS")
-
-      - name: Verify code signature
+      # Fork build: Developer ID notarization is unavailable here (it runs
+      # through block/apple-codesign-action, which assumes a role inside
+      # Block's AWS account via OIDC). The app is ad-hoc signed at bundle time
+      # instead -- see desktop/scripts/build-release-config.mjs. Tauri therefore
+      # produces the signed DMG and the signed updater archive directly, so the
+      # post-hoc signed-artifact swap is gone. No `spctl --assess` here: that
+      # asserts Gatekeeper acceptance, which ad-hoc signing cannot satisfy.
+      # Installing requires: xattr -dr com.apple.quarantine /Applications/Buzz.app
+      - name: Verify ad-hoc code signature
         run: |
           codesign --verify --deep --strict --verbose=2 \
-            desktop/src-tauri/target/release/bundle/macos/Buzz.app
-          spctl --assess --type execute --verbose=4 \
-            desktop/src-tauri/target/release/bundle/macos/Buzz.app
-          desktop/scripts/verify-macos-entitlements.sh \
             desktop/src-tauri/target/release/bundle/macos/Buzz.app
 
       - name: Locate build artifacts
@@ -264,7 +226,7 @@ jobs:
 
   release-macos-x64:
     name: Release macOS (Intel)
-    if: github.repository == 'block/buzz'
+    if: github.repository == 'abhirajsingh101/buzz'
     runs-on: macos-latest
     needs: setup
     timeout-minutes: 60
@@ -304,7 +266,7 @@ jobs:
         run: cd desktop && node scripts/build-release-config.mjs
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
 
       - name: Build sidecars
         run: |
@@ -312,10 +274,10 @@ jobs:
           ./scripts/bundle-sidecars.sh "$TARGET"
 
       - name: Build unsigned Tauri app
-        run: cd desktop && pnpm tauri build --verbose --no-sign --target "$TARGET" --config src-tauri/tauri.release.conf.json
+        run: cd desktop && pnpm tauri build --verbose --target "$TARGET" --config src-tauri/tauri.release.conf.json
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
@@ -339,53 +301,18 @@ jobs:
           DMG_PATH: ${{ steps.unsigned.outputs.dmg }}
         run: desktop/scripts/set-dmg-finder-text-size.sh "$DMG_PATH" 14
 
-      # mdx-ios-codesign-helper discovers this file by its exact lowercase basename.
-      - name: Stage signing entitlements
-        run: cp desktop/src-tauri/Entitlements.plist "${RUNNER_TEMP}/entitlements.plist"
-
-      - name: Codesign and Notarize
-        id: codesign
-        uses: block/apple-codesign-action@679535d1ab7c5a7c18e6f9afcba3464512cc3dde # v1.1.0
-        with:
-          osx-codesign-role: ${{ secrets.OSX_CODESIGN_ROLE }}
-          codesign-s3-bucket: ${{ secrets.CODESIGN_S3_BUCKET }}
-          unsigned-artifact-path: ${{ steps.unsigned.outputs.dmg }}
-          entitlements-plist-path: ${{ runner.temp }}/entitlements.plist
-          artifact-name: buzz-${{ github.sha }}-${{ github.run_id }}-x64
-
-      - name: Replace DMG and rebuild updater archive
-        env:
-          SIGNED_DMG: ${{ steps.codesign.outputs.signed-dmg-path }}
-          SIGNED_APP_ZIP: ${{ steps.codesign.outputs.signed-artifact-path }}
-          UNSIGNED_DMG: ${{ steps.unsigned.outputs.dmg }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          APP_DIR="desktop/src-tauri/target/${TARGET}/release/bundle/macos"
-
-          # Replace the unsigned DMG with the signed/notarized one.
-          cp "$SIGNED_DMG" "$UNSIGNED_DMG"
-
-          # Swap the unsigned .app for the signed .app from the action's zip.
-          EXTRACT_DIR="${RUNNER_TEMP}/signed-app-extract-x64"
-          rm -rf "$EXTRACT_DIR" && mkdir -p "$EXTRACT_DIR"
-          ditto -x -k "$SIGNED_APP_ZIP" "$EXTRACT_DIR"
-          rm -rf "${APP_DIR}/Buzz.app"
-          cp -R "${EXTRACT_DIR}/Buzz.app" "${APP_DIR}/Buzz.app"
-
-          # Rebuild the updater archive from the signed .app and re-sign with the Tauri updater key.
-          rm -f "${APP_DIR}/Buzz.app.tar.gz" "${APP_DIR}/Buzz.app.tar.gz.sig"
-          (cd "$APP_DIR" && tar -czf Buzz.app.tar.gz Buzz.app)
-          TARBALL_ABS="$(pwd)/${APP_DIR}/Buzz.app.tar.gz"
-          (cd desktop && pnpm tauri signer sign "$TARBALL_ABS")
-
-      - name: Verify code signature
+      # Fork build: Developer ID notarization is unavailable here (it runs
+      # through block/apple-codesign-action, which assumes a role inside
+      # Block's AWS account via OIDC). The app is ad-hoc signed at bundle time
+      # instead -- see desktop/scripts/build-release-config.mjs. Tauri therefore
+      # produces the signed DMG and the signed updater archive directly, so the
+      # post-hoc signed-artifact swap is gone. No `spctl --assess` here: that
+      # asserts Gatekeeper acceptance, which ad-hoc signing cannot satisfy.
+      # Installing requires: xattr -dr com.apple.quarantine /Applications/Buzz.app
+      - name: Verify ad-hoc code signature
         run: |
           APP_DIR="desktop/src-tauri/target/${TARGET}/release/bundle/macos/Buzz.app"
           codesign --verify --deep --strict --verbose=2 "$APP_DIR"
-          spctl --assess --type execute --verbose=4 "$APP_DIR"
-          desktop/scripts/verify-macos-entitlements.sh "$APP_DIR"
 
       - name: Locate updater archive
         id: artifacts
@@ -425,7 +352,7 @@ jobs:
 
   release-linux:
     name: Release Linux
-    if: github.repository == 'block/buzz'
+    if: github.repository == 'abhirajsingh101/buzz'
     runs-on: ubuntu-latest
     # Digest-pinned like the SHA-pinned actions below; Renovate keeps it fresh.
     container: ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
@@ -570,13 +497,13 @@ jobs:
         run: cd desktop && node scripts/build-release-config.mjs
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
 
       - name: Build Linux Tauri app
         run: cd desktop && pnpm tauri build --verbose --ci --bundles deb,appimage --features mesh-llm --config src-tauri/tauri.release.conf.json
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -707,7 +634,7 @@ jobs:
         run: cd desktop && node scripts/build-release-config.mjs
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
 
       - name: Build sidecars
         shell: bash
@@ -720,7 +647,7 @@ jobs:
         run: cd desktop && pnpm tauri build --verbose --target "$TARGET" --bundles nsis --config src-tauri/tauri.release.conf.json
         env:
           BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY || secrets.SPROUT_UPDATER_PUBLIC_KEY }}
-          BUZZ_UPDATER_ENDPOINT: https://github.com/block/buzz/releases/download/buzz-desktop-latest/latest.json
+          BUZZ_UPDATER_ENDPOINT: ${{ github.server_url }}/${{ github.repository }}/releases/download/buzz-desktop-latest/latest.json
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"

@@ -41,6 +41,14 @@ const releaseConfig = {
   bundle: {
     macOS: {
       minimumSystemVersion: "10.15",
+      // Fork build: Block's Developer ID notarization (apple-codesign-action,
+      // OIDC into Block's AWS) is not available here, so ad-hoc sign instead.
+      // "-" satisfies the Apple Silicon requirement that every binary carry a
+      // signature; it does NOT satisfy Gatekeeper, so first launch needs:
+      //   xattr -dr com.apple.quarantine /Applications/Buzz.app
+      // Signing at bundle time means the DMG contains the signed .app, and
+      // Tauri's own updater archive is built from it — no post-hoc swap.
+      signingIdentity: "-",
     },
     createUpdaterArtifacts: true,
   },
