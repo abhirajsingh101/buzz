@@ -38,25 +38,41 @@ dl() { # dl <asset-name> <dest>
     "https://github.com/${REPO}/releases/download/desktop-v${VER}/$1"
 }
 
-# Every process name the app runs under, per platform. Missing one is not
-# harmless: on Linux the AppImage wrapper is "Buzz.AppImage", and leaving it
-# alive means the replacement file lands on disk while the old inode keeps
-# running -- the install looks successful but the running app never changes,
-# and a relaunch is swallowed by the single-instance guard.
-APP_PROCS="buzz-desktop Buzz Buzz.AppImage"
+# Finding every live app process is harder than it looks, and getting it wrong
+# is silently destructive: a survivor keeps the old inode running while the new
+# file lands on disk, so the install reports success, the running app never
+# changes, and the relaunch is swallowed by the single-instance guard.
+#
+# Name matching alone is not enough on Linux. The AppImage wrapper re-execs the
+# real binary as `exec -a buzz-desktop .../buzz-desktop.bin`, so that process
+# has argv[0] "buzz-desktop" but comm "buzz-desktop.bi" (the kernel truncates
+# comm to 15 chars) -- `pkill -x buzz-desktop` matches neither. So on Linux we
+# resolve /proc/PID/exe instead, which is exact and cannot match this script.
+APP_PROCS="buzz-desktop Buzz Buzz.AppImage buzz-desktop.bin buzz-desktop.bi"
 
-app_running() {
+app_pids() {
   for p in ${APP_PROCS}; do
-    pgrep -x "${p}" >/dev/null 2>&1 && return 0
+    pgrep -x "${p}" 2>/dev/null || true
   done
-  return 1
+  if [ -d /proc ]; then
+    for d in /proc/[0-9]*; do
+      exe="$(readlink -f "${d}/exe" 2>/dev/null || true)"
+      case "${exe}" in
+        *mount_Buzz*|*Applications/Buzz.AppImage)
+          echo "${d#/proc/}" ;;
+      esac
+    done
+  fi
 }
 
 stop_app() {
-  for p in ${APP_PROCS}; do
-    pkill -x "${p}" 2>/dev/null || true
+  for pid in $(app_pids | sort -u); do
+    kill "${pid}" 2>/dev/null || true
   done
-  while app_running; do sleep 1; done
+  while [ -n "$(app_pids | sort -u)" ]; do sleep 1; done
+  # AppImage mounts and the media-proxy port need a moment to release, or the
+  # relaunch races the teardown and exits immediately.
+  sleep 3
 }
 
 OS="$(uname -s)"
