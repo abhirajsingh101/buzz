@@ -7,8 +7,8 @@ use crate::{
         build_managed_agent_summary, current_instance_id, discover_provider_candidates,
         ensure_persona_is_active, find_managed_agent_mut, load_managed_agents, load_personas,
         load_teams, managed_agent_avatar_url, normalize_agent_args, provider_deploy,
-        resolve_provider_binary, save_managed_agents, start_managed_agent_process,
-        stop_managed_agent_process, stop_managed_agent_workspace_pair,
+        resolve_agent_keys, resolve_provider_binary, save_managed_agents,
+        start_managed_agent_process, stop_managed_agent_process, stop_managed_agent_workspace_pair,
         sync_managed_agent_processes, try_regenerate_nest, validate_provider_config, BackendKind,
         CreateManagedAgentRequest, CreateManagedAgentResponse, ManagedAgentRecord,
         ManagedAgentSummary, RelayMeshConfig, DEFAULT_ACP_COMMAND, DEFAULT_AGENT_PARALLELISM,
@@ -629,7 +629,7 @@ pub async fn create_managed_agent(
             let personas = load_personas(&app)?;
             ensure_persona_is_active(&personas, persona_id)?;
         }
-        let keys = Keys::generate();
+        let keys = resolve_agent_keys(input.import_private_key_nsec.as_deref(), &owner_hex)?;
         let pubkey = keys.public_key().to_hex();
         if records.iter().any(|record| record.pubkey == pubkey) {
             return Err(format!("agent {pubkey} already exists"));

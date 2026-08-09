@@ -131,6 +131,19 @@ pub struct UpdatePersonaRequest {
 #[serde(rename_all = "camelCase")]
 pub struct CreateManagedAgentRequest {
     pub name: String,
+    /// Adopt an existing agent identity instead of minting a fresh one.
+    ///
+    /// `None` — the default and the overwhelmingly common case — generates a
+    /// new keypair. `Some` is for an identity that already exists and must be
+    /// kept: an agent already running under another launcher, or one being
+    /// moved between machines. Everything downstream is identical either way;
+    /// only the source of the keypair differs.
+    ///
+    /// Named for what it does rather than what it holds, so it cannot be
+    /// confused with the response's `private_key_nsec` — which is an output,
+    /// not an echo of this.
+    #[serde(default)]
+    pub import_private_key_nsec: Option<String>,
     #[serde(default)]
     pub persona_id: Option<String>,
     /// Optional deployment-time team binding for runtime instruction layering.

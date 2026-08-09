@@ -300,9 +300,13 @@ export type ManagedAgentRuntimeStatus = {
   logPath: string | null;
 };
 
-export type ManagedAgentBackend =
-  | { type: "local" }
-  | { type: "provider"; id: string; config: Record<string, unknown> };
+export type {
+  BackendProviderCandidate,
+  BackendProviderProbeResult,
+  ManagedAgentBackend,
+  RelayMeshConfig,
+} from "./backendTypes";
+import type { ManagedAgentBackend, RelayMeshConfig } from "./backendTypes";
 
 import type { RestartDiffEntry } from "./restartDiff";
 export type { JsonValue, RestartChange, RestartDiffEntry } from "./restartDiff";
@@ -389,25 +393,18 @@ export type ManagedAgent = {
 /** Inbound author gate mode. Mirrors buzz-acp's --respond-to CLI flag. */
 export type RespondToMode = "owner-only" | "allowlist" | "anyone";
 
-export type BackendProviderCandidate = {
-  id: string;
-  binaryPath: string;
-};
-
-export type BackendProviderProbeResult = {
-  ok: boolean;
-  name?: string;
-  version?: string;
-  description?: string;
-  config_schema?: Record<string, unknown>;
-};
-
-export type RelayMeshConfig = {
-  modelRef: string;
-};
-
 export type CreateManagedAgentInput = {
   name: string;
+  /**
+   * Adopt an existing agent identity instead of minting a fresh one.
+   *
+   * Omitted for every ordinary create. Set only by the import flow, for an
+   * identity that already exists: an agent already running under another
+   * launcher, or one being moved between machines. Must be a bech32 `nsec1…` —
+   * the backend refuses hex, because a hex public key is indistinguishable
+   * from a private one.
+   */
+  importPrivateKeyNsec?: string;
   personaId?: string;
   /** Team this instance was deployed from; controls runtime team instructions. */
   teamId?: string;

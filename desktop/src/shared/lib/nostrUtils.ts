@@ -60,6 +60,25 @@ export function parsePubkeyInput(input: string): string | null {
  * dropped `.key` file is tolerated.
  */
 export function nsecToNpub(nsec: string): string | null {
+  const pubkeyHex = nsecToPubkeyHex(nsec);
+  return pubkeyHex === null ? null : safeNpub(pubkeyHex);
+}
+
+/**
+ * Decode a bech32 nsec string and derive the matching hex pubkey. Returns null
+ * if the input is not a syntactically valid `nsec1…` (does NOT throw — this is
+ * intended for live form validation where the user is mid-typing).
+ *
+ * bech32 only, deliberately: a 64-character hex *public* key is also a
+ * syntactically valid *secret* key, so accepting hex here would let a pasted
+ * pubkey be treated as an identity nobody holds the key to. The `nsec1` prefix
+ * is the only thing that distinguishes them, and the backend refuses hex for
+ * the same reason (`resolve_agent_keys`).
+ *
+ * The input is trimmed first; surrounding whitespace from copy-paste or a
+ * dropped `.key` file is tolerated.
+ */
+export function nsecToPubkeyHex(nsec: string): string | null {
   const trimmed = nsec.trim();
   if (!trimmed.startsWith("nsec1")) {
     return null;
@@ -69,8 +88,7 @@ export function nsecToNpub(nsec: string): string | null {
     if (decoded.type !== "nsec") {
       return null;
     }
-    const pubkeyHex = getPublicKey(decoded.data);
-    return npubEncode(pubkeyHex);
+    return getPublicKey(decoded.data);
   } catch {
     return null;
   }

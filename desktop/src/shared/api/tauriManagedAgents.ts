@@ -4,6 +4,7 @@ import {
   type RawManagedAgent,
 } from "@/shared/api/tauri";
 import type {
+  CreateManagedAgentInput,
   ManagedAgent,
   ManagedAgentRuntimeStatus,
 } from "@/shared/api/types";
@@ -93,4 +94,52 @@ export async function reconcileManagedAgentRuntimes(
   communities: readonly { relayUrl: string }[],
 ): Promise<ManagedAgentRuntimeStatus[]> {
   return invokeTauri("reconcile_managed_agent_runtimes", { communities });
+}
+
+type RawCreateManagedAgentResponse = {
+  agent: RawManagedAgent;
+  private_key_nsec: string;
+  profile_sync_error: string | null;
+  spawn_error: string | null;
+};
+
+export async function createManagedAgent(input: CreateManagedAgentInput) {
+  const response = await invokeTauri<RawCreateManagedAgentResponse>(
+    "create_managed_agent",
+    {
+      input: {
+        name: input.name,
+        importPrivateKeyNsec: input.importPrivateKeyNsec,
+        personaId: input.personaId,
+        teamId: input.teamId,
+        relayUrl: input.relayUrl,
+        acpCommand: input.acpCommand,
+        agentCommand: input.agentCommand,
+        harnessOverride: input.harnessOverride ?? false,
+        agentArgs: input.agentArgs,
+        mcpCommand: input.mcpCommand,
+        turnTimeoutSeconds: input.turnTimeoutSeconds,
+        idleTimeoutSeconds: input.idleTimeoutSeconds,
+        maxTurnDurationSeconds: input.maxTurnDurationSeconds,
+        parallelism: input.parallelism,
+        systemPrompt: input.systemPrompt,
+        avatarUrl: input.avatarUrl,
+        model: input.model,
+        provider: input.provider,
+        envVars: input.envVars ?? {},
+        spawnAfterCreate: input.spawnAfterCreate,
+        startOnAppLaunch: input.startOnAppLaunch,
+        backend: input.backend,
+        respondTo: input.respondTo,
+        respondToAllowlist: input.respondToAllowlist,
+        relayMesh: input.relayMesh,
+      },
+    },
+  );
+  return {
+    agent: fromRawManagedAgent(response.agent),
+    privateKeyNsec: response.private_key_nsec,
+    profileSyncError: response.profile_sync_error,
+    spawnError: response.spawn_error,
+  };
 }

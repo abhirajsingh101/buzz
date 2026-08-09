@@ -30,7 +30,6 @@ import type {
   SetCanvasResult,
   ThreadCursor,
   ThreadRepliesResponse,
-  CreateManagedAgentInput,
   AgentModelsResponse,
   UpdateManagedAgentInput,
   AcpAvailabilityStatus,
@@ -43,6 +42,7 @@ import type {
 } from "@/shared/api/types";
 
 export * from "@/shared/api/tauriChannels";
+export { createManagedAgent } from "@/shared/api/tauriManagedAgents";
 
 type RawPresenceLookup = Record<string, PresenceStatus>;
 
@@ -162,13 +162,6 @@ export type RawManagedAgent = {
   // Pre-feature fixtures may omit these; mapped to "owner-only"/[] in fromRawManagedAgent.
   respond_to?: ManagedAgent["respondTo"];
   respond_to_allowlist?: string[];
-};
-
-type RawCreateManagedAgentResponse = {
-  agent: RawManagedAgent;
-  private_key_nsec: string;
-  profile_sync_error: string | null;
-  spawn_error: string | null;
 };
 
 type RawManagedAgentLog = {
@@ -827,46 +820,6 @@ export async function listManagedAgents(): Promise<ManagedAgent[]> {
     fromRawManagedAgent,
   );
 }
-export async function createManagedAgent(input: CreateManagedAgentInput) {
-  const response = await invokeTauri<RawCreateManagedAgentResponse>(
-    "create_managed_agent",
-    {
-      input: {
-        name: input.name,
-        personaId: input.personaId,
-        teamId: input.teamId,
-        relayUrl: input.relayUrl,
-        acpCommand: input.acpCommand,
-        agentCommand: input.agentCommand,
-        harnessOverride: input.harnessOverride ?? false,
-        agentArgs: input.agentArgs,
-        mcpCommand: input.mcpCommand,
-        turnTimeoutSeconds: input.turnTimeoutSeconds,
-        idleTimeoutSeconds: input.idleTimeoutSeconds,
-        maxTurnDurationSeconds: input.maxTurnDurationSeconds,
-        parallelism: input.parallelism,
-        systemPrompt: input.systemPrompt,
-        avatarUrl: input.avatarUrl,
-        model: input.model,
-        provider: input.provider,
-        envVars: input.envVars ?? {},
-        spawnAfterCreate: input.spawnAfterCreate,
-        startOnAppLaunch: input.startOnAppLaunch,
-        backend: input.backend,
-        respondTo: input.respondTo,
-        respondToAllowlist: input.respondToAllowlist,
-        relayMesh: input.relayMesh,
-      },
-    },
-  );
-  return {
-    agent: fromRawManagedAgent(response.agent),
-    privateKeyNsec: response.private_key_nsec,
-    profileSyncError: response.profile_sync_error,
-    spawnError: response.spawn_error,
-  };
-}
-
 export async function deleteManagedAgent(
   pubkey: string,
   forceRemoteDelete?: boolean,

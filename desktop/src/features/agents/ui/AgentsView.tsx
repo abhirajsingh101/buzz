@@ -1,5 +1,5 @@
 import * as React from "react";
-import { EllipsisVertical, OctagonX, Settings2 } from "lucide-react";
+import { EllipsisVertical, KeyRound, OctagonX, Settings2 } from "lucide-react";
 import {
   consumePendingSnapshotImport,
   subscribeSnapshotImport,
@@ -7,6 +7,7 @@ import {
 import { AddAgentToChannelDialog } from "./AddAgentToChannelDialog";
 import { AddTeamToChannelDialog } from "./AddTeamToChannelDialog";
 import { AgentDefaultsDialog } from "./AgentDefaultsDialog";
+import { ImportAgentsDialog } from "./ImportAgentsDialog";
 import { AgentDialog } from "./AgentDialog";
 import { PersonaCatalogDialog } from "./PersonaCatalogDialog";
 import { PersonaDeleteDialog } from "./PersonaDeleteDialog";
@@ -49,6 +50,7 @@ export function AgentsView() {
   const fullAiDefaultsTriggerRef = React.useRef<HTMLButtonElement>(null);
   const compactActionsTriggerRef = React.useRef<HTMLButtonElement>(null);
   const [isAiDefaultsOpen, setIsAiDefaultsOpen] = React.useState(false);
+  const [isImportAgentsOpen, setIsImportAgentsOpen] = React.useState(false);
 
   function openUnifiedCatalog() {
     personas.prepareCreate();
@@ -149,6 +151,15 @@ export function AgentsView() {
                       ? "Agent defaults"
                       : "Set agent defaults"}
                   </Button>
+                  <Button
+                    data-testid="import-agents-button"
+                    onClick={() => setIsImportAgentsOpen(true)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <KeyRound />
+                    Import existing
+                  </Button>
                   {runningAgentCount > 0 ? (
                     <Button
                       disabled={isActionPending}
@@ -188,6 +199,12 @@ export function AgentsView() {
                       {hasSavedAgentDefaults
                         ? "Agent defaults"
                         : "Set agent defaults"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setIsImportAgentsOpen(true)}
+                    >
+                      <KeyRound />
+                      Import existing agents
                     </DropdownMenuItem>
                     {runningAgentCount > 0 ? (
                       <DropdownMenuItem
@@ -635,6 +652,12 @@ export function AgentsView() {
           }}
         />
       ) : null}
+      <ImportAgentsDialog
+        existingPubkeys={agents.managedAgents.map((agent) => agent.pubkey)}
+        onImported={agents.refetchManagedAgents}
+        onOpenChange={setIsImportAgentsOpen}
+        open={isImportAgentsOpen}
+      />
       {/* Hidden file input for team snapshot import via file picker */}
       <input
         accept=".team.json,.team.png"

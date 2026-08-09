@@ -1,6 +1,7 @@
 pub(crate) mod access_policy;
 mod agent_env;
 pub(crate) mod agent_events;
+mod agent_identity;
 pub(crate) mod agent_snapshot;
 pub(crate) mod agent_snapshot_envelope;
 pub(crate) mod team_snapshot;
@@ -50,6 +51,7 @@ pub(crate) fn lock_path_mutex() -> std::sync::MutexGuard<'static, ()> {
     PATH_MUTEX.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+pub use agent_identity::resolve_agent_keys;
 pub use backend::*;
 pub use discovery::*;
 pub use env_vars::*;
