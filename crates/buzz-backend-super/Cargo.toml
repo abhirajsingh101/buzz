@@ -1,0 +1,19 @@
+[package]
+name = "buzz-backend-super"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "SSH/process backend provider for Buzz remote agents (docs/remote-agents.md)"
+
+[[bin]]
+name = "buzz-backend-super"
+path = "src/main.rs"
+
+[dependencies]
+nostr = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
