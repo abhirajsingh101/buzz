@@ -150,6 +150,7 @@ export default defineConfig({
       name: "integration",
       testMatch: [
         "**/agents.spec.ts",
+        "**/import-agents.spec.ts",
         "**/agent-snapshot-recipient.spec.ts",
         "**/onboarding.spec.ts",
         "**/stream.spec.ts",

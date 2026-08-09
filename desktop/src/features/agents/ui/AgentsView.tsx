@@ -151,14 +151,20 @@ export function AgentsView() {
                       ? "Agent defaults"
                       : "Set agent defaults"}
                   </Button>
+                  {/* Icon-only at this width on purpose. Importing is a rare
+                      administrative action, and a third full-width button here
+                      pushes the header past its budget and wraps the page
+                      description onto a second line. The overflow menu below
+                      carries the full label. */}
                   <Button
+                    aria-label="Import existing agents"
                     data-testid="import-agents-button"
                     onClick={() => setIsImportAgentsOpen(true)}
-                    size="sm"
+                    size="icon"
+                    title="Import existing agents"
                     variant="outline"
                   >
                     <KeyRound />
-                    Import existing
                   </Button>
                   {runningAgentCount > 0 ? (
                     <Button

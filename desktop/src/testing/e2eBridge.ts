@@ -8315,6 +8315,32 @@ async function handleParseTeamFile(): Promise<{
   };
 }
 
+/**
+ * The identity a create ends up with.
+ *
+ * Mirrors the backend's `resolve_agent_keys`: an import adopts the key it was
+ * given, everything else mints a fresh one. Deriving for real (rather than
+ * returning a random pubkey either way) is what lets a spec assert that the
+ * record carries the *imported* identity — which is the entire point of
+ * importing, and would otherwise be untestable without a live backend.
+ */
+function pubkeyForCreate(importPrivateKeyNsec: string | undefined): string {
+  const trimmed = importPrivateKeyNsec?.trim();
+  if (trimmed?.startsWith("nsec1")) {
+    try {
+      const decoded = decode(trimmed);
+      if (decoded.type === "nsec") {
+        return getPublicKey(decoded.data);
+      }
+    } catch {
+      // Fall through: the real backend refuses an undecodable key, and a mock
+      // that threw here would fail the test with a stack instead of the
+      // behavior under test.
+    }
+  }
+  return crypto.randomUUID().replace(/-/g, "").padEnd(64, "0").slice(0, 64);
+}
+
 async function handleCreateManagedAgent(
   args: {
     input: {
@@ -8341,6 +8367,7 @@ async function handleCreateManagedAgent(
         | { type: "provider"; id: string; config: Record<string, unknown> };
       respondTo?: "owner-only" | "allowlist" | "anyone";
       respondToAllowlist?: string[];
+      importPrivateKeyNsec?: string;
     };
   },
   config: E2eConfig | undefined,
@@ -8380,11 +8407,7 @@ async function handleCreateManagedAgent(
   const avatarUrl = args.input.avatarUrl?.trim() || personaAvatarUrl;
   const name = args.input.name.trim();
   const now = new Date().toISOString();
-  const pubkey = crypto
-    .randomUUID()
-    .replace(/-/g, "")
-    .padEnd(64, "0")
-    .slice(0, 64);
+  const pubkey = pubkeyForCreate(args.input.importPrivateKeyNsec);
   const agentCommand = args.input.agentCommand ?? "buzz-agent";
   const agentArgs =
     args.input.agentArgs && args.input.agentArgs.length > 0
