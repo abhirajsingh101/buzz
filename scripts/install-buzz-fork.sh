@@ -38,12 +38,25 @@ dl() { # dl <asset-name> <dest>
     "https://github.com/${REPO}/releases/download/desktop-v${VER}/$1"
 }
 
-stop_app() {
-  pkill -x buzz-desktop 2>/dev/null || true
-  pkill -x Buzz 2>/dev/null || true
-  while pgrep -x buzz-desktop >/dev/null 2>&1 || pgrep -x Buzz >/dev/null 2>&1; do
-    sleep 1
+# Every process name the app runs under, per platform. Missing one is not
+# harmless: on Linux the AppImage wrapper is "Buzz.AppImage", and leaving it
+# alive means the replacement file lands on disk while the old inode keeps
+# running -- the install looks successful but the running app never changes,
+# and a relaunch is swallowed by the single-instance guard.
+APP_PROCS="buzz-desktop Buzz Buzz.AppImage"
+
+app_running() {
+  for p in ${APP_PROCS}; do
+    pgrep -x "${p}" >/dev/null 2>&1 && return 0
   done
+  return 1
+}
+
+stop_app() {
+  for p in ${APP_PROCS}; do
+    pkill -x "${p}" 2>/dev/null || true
+  done
+  while app_running; do sleep 1; done
 }
 
 OS="$(uname -s)"
