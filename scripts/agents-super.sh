@@ -63,12 +63,26 @@ workspace_for() { [[ -d "$WS_DIR/$1" ]] && echo "$WS_DIR/$1" || echo "$FALLBACK_
 
 # Live PID for an agent, or empty. Verifies the PID is actually our binary so a
 # recycled PID never gets signalled.
+#
+# Reads the raw symlink rather than `readlink -f`. Once `cargo build` replaces
+# the harness, a still-running agent reports its exe as "<path> (deleted)" --
+# the inode is gone, the process is not. `readlink -f` cannot canonicalise that
+# and returns empty, so the old comparison declared a live agent stale, removed
+# its pidfile, and returned "not running": `stop` skipped it, `start` launched a
+# second one, and the fleet silently doubled to 24 processes, half of them
+# orphaned on the old binary and all still answering mentions (2026-08-10).
+#
+# Stripping the suffix keeps the recycled-PID guard intact -- the path still has
+# to match -- while surviving a binary swap underneath a running fleet.
 pid_for() {
-  local f="$RUN_DIR/$1.pid" p
+  local f="$RUN_DIR/$1.pid" p exe
   [[ -f "$f" ]] || return 0
   p=$(<"$f")
   [[ -n "$p" && -d "/proc/$p" ]] || { rm -f "$f"; return 0; }
-  [[ "$(readlink -f /proc/$p/exe 2>/dev/null)" == "$(readlink -f "$BIN")" ]] || { rm -f "$f"; return 0; }
+  exe=$(readlink "/proc/$p/exe" 2>/dev/null)
+  exe=${exe% (deleted)}
+  [[ -n "$exe" && ( "$exe" == "$BIN" || "$exe" == "$(readlink -f "$BIN" 2>/dev/null)" ) ]] \
+    || { rm -f "$f"; return 0; }
   echo "$p"
 }
 
